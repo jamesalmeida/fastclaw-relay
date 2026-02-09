@@ -548,7 +548,7 @@ class Relay {
       const nameMatch = content.match(/\*\*Name:\*\*\s*(.+)/);
       const emojiMatch = content.match(/\*\*Emoji:\*\*\s*(\S+)/);
       const identity = {};
-      if (nameMatch) identity.name = nameMatch[1].trim();
+      if (nameMatch) identity.name = nameMatch[1].trim().replace(/\s*\(.*\)$/, "");
       if (emojiMatch) identity.emoji = emojiMatch[1].trim();
       if (!identity.name && !identity.emoji) return;
 
