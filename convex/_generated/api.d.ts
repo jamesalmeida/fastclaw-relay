@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as cronJobs from "../cronJobs.js";
 import type * as messages from "../messages.js";
 import type * as pairing from "../pairing.js";
 import type * as sessions from "../sessions.js";
@@ -20,6 +21,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  cronJobs: typeof cronJobs;
   messages: typeof messages;
   pairing: typeof pairing;
   sessions: typeof sessions;

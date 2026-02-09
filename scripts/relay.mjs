@@ -418,6 +418,7 @@ class Relay {
 
     const healthSync = setInterval(() => {
       void this.syncHealth(conn);
+      void this.syncCronJobs();
     }, 60_000);
 
     console.log("starting relay loops (heartbeat, session sync, health, app poll)...");
@@ -429,6 +430,8 @@ class Relay {
     console.log("health synced");
     await this.syncSkills();
     console.log("skills synced");
+    await this.syncCronJobs();
+    console.log("cron jobs synced");
     await this.syncHistoryForSessions(conn);
     console.log("history synced");
     await this.forwardUnsyncedAppMessages(conn);
@@ -539,6 +542,42 @@ class Relay {
       });
     } catch (err) {
       if (this.running) console.error(`skills sync failed: ${err.message}`);
+    }
+  }
+
+  async syncCronJobs() {
+    try {
+      const raw = execSync("openclaw cron list --json --include-disabled", {
+        encoding: "utf-8",
+        timeout: 15000,
+      });
+      const data = JSON.parse(raw);
+      const jobs = (data.jobs ?? []).map((j) => ({
+        id: j.id,
+        name: j.name ?? undefined,
+        enabled: j.enabled ?? false,
+        scheduleKind: j.schedule?.kind ?? "unknown",
+        scheduleExpr: j.schedule?.expr ?? undefined,
+        scheduleTz: j.schedule?.tz ?? undefined,
+        scheduleAt: j.schedule?.at ? new Date(j.schedule.at).getTime() : undefined,
+        scheduleEveryMs: j.schedule?.everyMs ?? undefined,
+        sessionTarget: j.sessionTarget ?? "main",
+        payloadKind: j.payload?.kind ?? "unknown",
+        payloadText: j.payload?.text ?? j.payload?.message ?? "",
+        lastRunAt: j.state?.lastRunAtMs ?? undefined,
+        lastStatus: j.state?.lastStatus ?? undefined,
+        lastError: j.state?.lastError ?? undefined,
+        lastDurationMs: j.state?.lastDurationMs ?? undefined,
+        nextRunAt: j.state?.nextRunAtMs ?? undefined,
+        deliveryMode: j.delivery?.mode ?? undefined,
+      }));
+
+      await this.convex.mutation("cronJobs:sync", {
+        instanceId: this.config.instanceId,
+        jobs,
+      });
+    } catch (err) {
+      if (this.running) console.error(`cron jobs sync failed: ${err.message}`);
     }
   }
 
