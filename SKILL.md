@@ -27,17 +27,30 @@ No network configuration needed. Both sides connect **outbound**.
 clawhub install fastclaw-relay
 ```
 
-### 2. Start pairing
+### 2. Pair your phone
 
+Just ask your agent: **"pair my phone"** or **"I need a FastClaw pairing code"**
+
+The agent will generate a QR code and send it to you right in the chat. Scan it in the FastClaw app — done.
+
+**How it works (for agents):**
 ```bash
-openclaw fastclaw pair
+# Generate a pairing code + QR image
+node <skill_dir>/scripts/generate-pairing.mjs --out /tmp/fastclaw-qr.png
+# Returns JSON: { "code": "123456", "convexUrl": "...", "qrPath": "/tmp/fastclaw-qr.png", "expiresIn": "5 minutes" }
 ```
 
-This displays a QR code containing your Convex deployment URL and a one-time pairing token.
+Then send the QR image to the user via their current channel with the code as fallback text.
+Codes expire in 5 minutes.
+
+**Alternative (terminal):**
+```bash
+node <skill_dir>/scripts/pair.mjs
+```
 
 ### 3. Scan from FastClaw app
 
-Open FastClaw → tap "Connect" → scan the QR code. Done.
+Open FastClaw → tap "Connect" → scan the QR code (or enter the 6-digit code manually). Done.
 
 ## Configuration
 
