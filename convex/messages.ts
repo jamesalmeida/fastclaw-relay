@@ -20,7 +20,7 @@ export const sendFromApp = mutation({
       throw new Error("Device not paired to this instance");
     }
 
-    await ctx.db.insert("messages", {
+    const messageId = await ctx.db.insert("messages", {
       instanceId,
       sessionKey,
       role: "user",
@@ -44,6 +44,8 @@ export const sendFromApp = mutation({
         updatedAt: Date.now(),
       });
     }
+
+    return { _id: messageId, role: "user" as const, content, timestamp: Date.now() };
   },
 });
 
