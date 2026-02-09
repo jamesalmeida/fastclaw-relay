@@ -75,6 +75,26 @@ export const heartbeat = mutation({
   },
 });
 
+// Push identity from relay (parsed from IDENTITY.md)
+export const pushIdentity = mutation({
+  args: {
+    instanceId: v.string(),
+    identity: v.object({
+      name: v.optional(v.string()),
+      emoji: v.optional(v.string()),
+    }),
+  },
+  handler: async (ctx, { instanceId, identity }) => {
+    const instance = await ctx.db
+      .query("instances")
+      .withIndex("by_instanceId", (q) => q.eq("instanceId", instanceId))
+      .first();
+    if (instance) {
+      await ctx.db.patch(instance._id, { identity });
+    }
+  },
+});
+
 // Push health data from relay
 export const pushHealth = mutation({
   args: {

@@ -432,6 +432,8 @@ class Relay {
     console.log("sessions synced");
     await this.syncHealth(conn);
     console.log("health synced");
+    await this.syncIdentity();
+    console.log("identity synced");
     await this.syncSkills();
     console.log("skills synced");
     await this.syncCronJobs();
@@ -522,6 +524,40 @@ class Relay {
       });
     } catch (err) {
       if (this.running) console.error(`health sync failed: ${err.message}`);
+    }
+  }
+
+  async syncIdentity() {
+    try {
+      // Find workspace dir from config or common locations
+      const homeDir = process.env.HOME || process.env.USERPROFILE;
+      const candidates = [
+        path.join(homeDir, "clawd", "IDENTITY.md"),
+        path.join(homeDir, ".openclaw", "workspace", "IDENTITY.md"),
+      ];
+      let content = null;
+      for (const p of candidates) {
+        try {
+          content = await fs.readFile(p, "utf-8");
+          break;
+        } catch {}
+      }
+      if (!content) return;
+
+      // Parse name and emoji from IDENTITY.md
+      const nameMatch = content.match(/\*\*Name:\*\*\s*(.+)/);
+      const emojiMatch = content.match(/\*\*Emoji:\*\*\s*(\S+)/);
+      const identity = {};
+      if (nameMatch) identity.name = nameMatch[1].trim();
+      if (emojiMatch) identity.emoji = emojiMatch[1].trim();
+      if (!identity.name && !identity.emoji) return;
+
+      await this.convex.mutation("sessions:pushIdentity", {
+        instanceId: this.config.instanceId,
+        identity,
+      });
+    } catch (err) {
+      if (this.running) console.error(`identity sync failed: ${err.message}`);
     }
   }
 

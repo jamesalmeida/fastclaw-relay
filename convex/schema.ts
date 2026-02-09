@@ -10,6 +10,11 @@ export default defineSchema({
     version: v.optional(v.string()), // OpenClaw version
     lastSeenAt: v.number(), // timestamp
     createdAt: v.number(),
+    // Agent identity (from workspace IDENTITY.md)
+    identity: v.optional(v.object({
+      name: v.optional(v.string()),
+      emoji: v.optional(v.string()),
+    })),
     // Rich health data from gateway
     healthData: v.optional(v.object({
       model: v.optional(v.string()),
