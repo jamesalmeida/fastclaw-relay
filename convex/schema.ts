@@ -71,6 +71,14 @@ export default defineSchema({
     source: v.union(v.literal("gateway"), v.literal("fastclaw")),
     // Track sync status
     synced: v.boolean(),
+    // Image attachments (optional)
+    attachments: v.optional(v.array(v.object({
+      type: v.string(), // "image"
+      storageId: v.optional(v.string()), // Convex file storage ID
+      url: v.optional(v.string()), // public URL after storage
+      mimeType: v.optional(v.string()),
+      filename: v.optional(v.string()),
+    }))),
   })
     .index("by_session", ["instanceId", "sessionKey", "timestamp"])
     .index("by_unsynced", ["instanceId", "synced"]),

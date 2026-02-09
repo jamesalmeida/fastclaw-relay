@@ -9,6 +9,7 @@
  */
 
 import type * as cronJobs from "../cronJobs.js";
+import type * as files from "../files.js";
 import type * as messages from "../messages.js";
 import type * as pairing from "../pairing.js";
 import type * as sessions from "../sessions.js";
@@ -22,6 +23,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   cronJobs: typeof cronJobs;
+  files: typeof files;
   messages: typeof messages;
   pairing: typeof pairing;
   sessions: typeof sessions;
