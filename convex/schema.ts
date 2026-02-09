@@ -111,6 +111,18 @@ export default defineSchema({
   })
     .index("by_instanceId", ["instanceId"]),
 
+  // Pending cron actions from app → relay → gateway
+  cronActions: defineTable({
+    instanceId: v.string(),
+    jobId: v.string(),
+    action: v.string(), // "enable" | "disable"
+    status: v.string(), // "pending" | "done" | "error"
+    error: v.optional(v.string()),
+    createdAt: v.number(),
+    completedAt: v.optional(v.number()),
+  })
+    .index("by_instanceId_status", ["instanceId", "status"]),
+
   // One-time pairing codes (QR code content)
   pairingCodes: defineTable({
     code: v.string(), // 6-digit or UUID

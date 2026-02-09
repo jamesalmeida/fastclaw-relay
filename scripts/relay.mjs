@@ -421,6 +421,10 @@ class Relay {
       void this.syncCronJobs();
     }, 60_000);
 
+    const cronActionsPoll = setInterval(() => {
+      void this.processCronActions();
+    }, 5_000);
+
     console.log("starting relay loops (heartbeat, session sync, health, app poll)...");
     await this.sendHeartbeat();
     console.log("heartbeat sent");
@@ -447,6 +451,7 @@ class Relay {
         clearInterval(heartbeat);
         clearInterval(sessionSync);
         clearInterval(healthSync);
+        clearInterval(cronActionsPoll);
       }
     }
   }
@@ -578,6 +583,38 @@ class Relay {
       });
     } catch (err) {
       if (this.running) console.error(`cron jobs sync failed: ${err.message}`);
+    }
+  }
+
+  async processCronActions() {
+    try {
+      const actions = await this.convex.query("cronJobs:getPendingActions", {
+        instanceId: this.config.instanceId,
+      });
+      if (!actions || actions.length === 0) return;
+
+      for (const action of actions) {
+        try {
+          const cmd = action.action === "enable"
+            ? `openclaw cron enable ${action.jobId}`
+            : `openclaw cron disable ${action.jobId}`;
+          execSync(cmd, { encoding: "utf-8", timeout: 15000 });
+          await this.convex.mutation("cronJobs:completeAction", {
+            actionId: action._id,
+            status: "done",
+          });
+        } catch (err) {
+          await this.convex.mutation("cronJobs:completeAction", {
+            actionId: action._id,
+            status: "error",
+            error: err.message?.slice(0, 200),
+          });
+        }
+      }
+      // Refresh cron state after processing actions
+      await this.syncCronJobs();
+    } catch (err) {
+      if (this.running) console.error(`cron actions processing failed: ${err.message}`);
     }
   }
 
