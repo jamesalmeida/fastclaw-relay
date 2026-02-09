@@ -57,6 +57,18 @@ export const pushFromGateway = mutation({
     timestamp: v.number(),
   },
   handler: async (ctx, { instanceId, sessionKey, role, content, timestamp }) => {
+    // Deduplicate: check if a message with same session+role+timestamp already exists
+    const existing = await ctx.db
+      .query("messages")
+      .withIndex("by_session", (q) =>
+        q.eq("instanceId", instanceId).eq("sessionKey", sessionKey).eq("timestamp", timestamp)
+      )
+      .first();
+
+    if (existing && existing.role === role && existing.content === content) {
+      return; // Skip duplicate
+    }
+
     await ctx.db.insert("messages", {
       instanceId,
       sessionKey,

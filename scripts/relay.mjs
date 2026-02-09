@@ -384,6 +384,8 @@ class Relay {
     console.log("heartbeat sent");
     await this.syncSessions(conn);
     console.log("sessions synced");
+    await this.syncHistoryForSessions(conn);
+    console.log("history synced");
     await this.forwardUnsyncedAppMessages(conn);
     console.log("initial app message check done, entering wait loop...");
 
@@ -412,6 +414,73 @@ class Relay {
       });
     } catch (err) {
       if (this.running) console.error(`session sync failed: ${err.message}`);
+    }
+  }
+
+  async syncHistoryForSessions(conn) {
+    try {
+      // Get all sessions from Convex
+      const sessions = await this.convex.query("sessions:getForInstance", {
+        instanceId: this.config.instanceId,
+      });
+      if (!Array.isArray(sessions) || sessions.length === 0) return;
+
+      for (const session of sessions) {
+        const sessionKey = session?.sessionKey;
+        if (!sessionKey) continue;
+
+        try {
+          const payload = await conn.request("chat.history", { sessionKey, limit: 50 });
+          const rawMessages = payload?.messages ?? [];
+          const messages = [];
+
+          for (const msg of rawMessages) {
+            if (msg.role === "toolResult" || msg.role === "tool") continue;
+
+            // Extract text from structured content
+            let text = "";
+            if (typeof msg.content === "string") {
+              text = msg.content;
+            } else if (Array.isArray(msg.content)) {
+              text = msg.content
+                .filter((part) => part?.type === "text" && typeof part?.text === "string")
+                .map((part) => part.text)
+                .join("\n");
+            }
+
+            if (!text.trim()) continue;
+
+            const role = msg.role === "user" ? "user" : msg.role === "assistant" ? "assistant" : "system";
+            messages.push({
+              role,
+              content: text.slice(0, 4000), // cap length
+              timestamp: toNumber(msg.timestamp ?? msg.ts, nowMs()),
+            });
+          }
+
+          if (messages.length === 0) continue;
+
+          // Push to Convex
+          for (const m of messages) {
+            try {
+              await this.convex.mutation("messages:pushFromGateway", {
+                instanceId: this.config.instanceId,
+                sessionKey,
+                role: m.role,
+                content: m.content,
+                timestamp: m.timestamp,
+              });
+            } catch {
+              // skip duplicates or errors
+            }
+          }
+          console.log(`synced ${messages.length} messages for ${sessionKey}`);
+        } catch (err) {
+          console.log(`history sync failed for ${sessionKey}: ${err.message}`);
+        }
+      }
+    } catch (err) {
+      if (this.running) console.error(`history sync failed: ${err.message}`);
     }
   }
 
