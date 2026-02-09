@@ -70,6 +70,21 @@ export default defineSchema({
     .index("by_session", ["instanceId", "sessionKey", "timestamp"])
     .index("by_unsynced", ["instanceId", "synced"]),
 
+  // Installed skills
+  skills: defineTable({
+    instanceId: v.string(),
+    skills: v.array(v.object({
+      name: v.string(),
+      description: v.string(),
+      emoji: v.optional(v.string()),
+      eligible: v.boolean(),
+      source: v.string(),
+      homepage: v.optional(v.string()),
+    })),
+    updatedAt: v.number(),
+  })
+    .index("by_instanceId", ["instanceId"]),
+
   // One-time pairing codes (QR code content)
   pairingCodes: defineTable({
     code: v.string(), // 6-digit or UUID

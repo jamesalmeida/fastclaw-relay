@@ -2,6 +2,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createHash, generateKeyPairSync, randomUUID, sign } from "node:crypto";
+import { execSync } from "node:child_process";
 import { setTimeout as sleep } from "node:timers/promises";
 import { ConvexHttpClient } from "convex/browser";
 import WebSocket from "ws";
@@ -426,6 +427,8 @@ class Relay {
     console.log("sessions synced");
     await this.syncHealth(conn);
     console.log("health synced");
+    await this.syncSkills();
+    console.log("skills synced");
     await this.syncHistoryForSessions(conn);
     console.log("history synced");
     await this.forwardUnsyncedAppMessages(conn);
@@ -511,6 +514,31 @@ class Relay {
       });
     } catch (err) {
       if (this.running) console.error(`health sync failed: ${err.message}`);
+    }
+  }
+
+  async syncSkills() {
+    try {
+      const raw = execSync("openclaw skills list --json", {
+        encoding: "utf-8",
+        timeout: 15000,
+      });
+      const data = JSON.parse(raw);
+      const skills = (data.skills ?? []).map((s) => ({
+        name: s.name,
+        description: s.description ?? "",
+        emoji: s.emoji ?? undefined,
+        eligible: s.eligible ?? false,
+        source: s.source ?? "unknown",
+        homepage: s.homepage ?? undefined,
+      }));
+
+      await this.convex.mutation("skills:sync", {
+        instanceId: this.config.instanceId,
+        skills,
+      });
+    } catch (err) {
+      if (this.running) console.error(`skills sync failed: ${err.message}`);
     }
   }
 

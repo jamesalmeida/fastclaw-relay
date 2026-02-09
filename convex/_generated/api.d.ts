@@ -11,6 +11,7 @@
 import type * as messages from "../messages.js";
 import type * as pairing from "../pairing.js";
 import type * as sessions from "../sessions.js";
+import type * as skills from "../skills.js";
 
 import type {
   ApiFromModules,
@@ -22,6 +23,7 @@ declare const fullApi: ApiFromModules<{
   messages: typeof messages;
   pairing: typeof pairing;
   sessions: typeof sessions;
+  skills: typeof skills;
 }>;
 
 /**
