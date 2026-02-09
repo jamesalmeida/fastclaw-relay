@@ -312,6 +312,7 @@ class Relay {
     this.running = true;
     this.reconnectAttempt = 0;
     this.recentGatewayMessageHashes = new Map();
+    this.pendingDeltas = new Map();
     this.conn = null;
   }
 
@@ -352,16 +353,50 @@ class Relay {
     let stopping = false;
 
     const onFrame = (frame) => {
-      if (frame?.event === "chat.message" || frame?.type === "chat.message") {
-        void this.pushGatewayMessages(extractGatewayMessages(frame));
+      const evt = frame?.event ?? frame?.type;
+      if (evt && evt !== "tick" && evt !== "health") {
+        console.log(`[frame] event=${evt} payload=${JSON.stringify(frame?.payload ?? frame).slice(0, 300)}`);
+      }
+      // Gateway broadcasts "chat" events with state: delta|final|error
+      if (evt === "chat") {
+        const p = frame?.payload ?? frame;
+        const runId = p?.runId;
+        const sessionKey = p?.sessionKey;
+        if (runId && sessionKey) {
+          if (p?.state === "delta" && p?.message) {
+            // Track latest accumulated text per runId
+            let text = "";
+            if (Array.isArray(p.message.content)) {
+              text = p.message.content
+                .filter((c) => c?.type === "text")
+                .map((c) => c.text)
+                .join("\n");
+            } else if (typeof p.message.content === "string") {
+              text = p.message.content;
+            }
+            if (text) this.pendingDeltas.set(runId, { sessionKey, text, timestamp: p.message.timestamp ?? nowMs() });
+          } else if (p?.state === "final") {
+            // Push final message (from final payload or accumulated delta)
+            let text = "";
+            if (p?.message) {
+              if (Array.isArray(p.message.content)) {
+                text = p.message.content.filter((c) => c?.type === "text").map((c) => c.text).join("\n");
+              } else if (typeof p.message.content === "string") {
+                text = p.message.content;
+              }
+            }
+            const delta = this.pendingDeltas.get(runId);
+            this.pendingDeltas.delete(runId);
+            const finalText = text || delta?.text || "";
+            if (finalText.trim()) {
+              void this.pushChatEvent({ sessionKey, message: { role: "assistant", content: finalText, timestamp: delta?.timestamp ?? nowMs() } });
+            }
+          }
+        }
       }
 
-      if (frame?.event === "sessions.updated" || frame?.type === "sessions.updated") {
+      if (evt === "sessions.updated") {
         void this.syncSessions(conn);
-      }
-
-      if (frame?.event === "chat.response" || frame?.type === "chat.response") {
-        void this.pushGatewayMessages(extractGatewayMessages(frame));
       }
     };
 
@@ -414,6 +449,39 @@ class Relay {
       });
     } catch (err) {
       if (this.running) console.error(`session sync failed: ${err.message}`);
+    }
+  }
+
+  async pushChatEvent(payload) {
+    try {
+      const sessionKey = payload?.sessionKey;
+      const msg = payload?.message;
+      if (!sessionKey || !msg) return;
+
+      let text = "";
+      if (typeof msg.content === "string") {
+        text = msg.content;
+      } else if (Array.isArray(msg.content)) {
+        text = msg.content
+          .filter((part) => part?.type === "text" && typeof part?.text === "string")
+          .map((part) => part.text)
+          .join("\n");
+      }
+      if (!text.trim()) return;
+
+      const role = msg.role === "user" ? "user" : msg.role === "assistant" ? "assistant" : "system";
+      const timestamp = toNumber(msg.timestamp, nowMs());
+
+      await this.convex.mutation("messages:pushFromGateway", {
+        instanceId: this.config.instanceId,
+        sessionKey,
+        role,
+        content: text.slice(0, 4000),
+        timestamp,
+      });
+      console.log(`pushed ${role} message to Convex for ${sessionKey}`);
+    } catch (err) {
+      console.error(`pushChatEvent failed: ${err.message}`);
     }
   }
 
