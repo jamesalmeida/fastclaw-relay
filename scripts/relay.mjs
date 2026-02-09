@@ -190,6 +190,7 @@ class GatewayConnection {
             throw new Error(`Unexpected connect response type: ${type ?? "unknown"}`);
           }
 
+          this.serverVersion = response?.server?.version ?? "unknown";
           this.connected = true;
           settle(resolve);
         } catch (err) {
@@ -446,16 +447,22 @@ class Relay {
 
   async syncHealth(conn) {
     try {
-      const payload = await conn.request("health", {});
-      if (!payload) return;
+      // Fetch both health and status for complete data
+      const [healthPayload, statusPayload] = await Promise.all([
+        conn.request("health", {}).catch(() => null),
+        conn.request("status", {}).catch(() => null),
+      ]);
 
-      const status = payload?.status ?? payload;
+      const h = healthPayload?.status ?? healthPayload ?? {};
+      const s = statusPayload?.status ?? statusPayload ?? {};
+
+      // Channels from health endpoint
       const channels = [];
-      const channelOrder = status?.channelOrder ?? Object.keys(status?.channels ?? {});
-      const channelLabels = status?.channelLabels ?? {};
+      const channelOrder = h?.channelOrder ?? Object.keys(h?.channels ?? {});
+      const channelLabels = h?.channelLabels ?? {};
 
       for (const id of channelOrder) {
-        const ch = status?.channels?.[id];
+        const ch = h?.channels?.[id];
         if (!ch) continue;
         channels.push({
           id,
@@ -466,22 +473,35 @@ class Relay {
         });
       }
 
-      const sessions = status?.sessions;
-      const agents = status?.agents;
-      const defaults = sessions?.defaults ?? agents?.[0]?.sessions?.defaults;
+      // Model/context from status endpoint (has defaults), fallback to health
+      const defaults = s?.sessions?.defaults ?? h?.agents?.[0]?.sessions?.defaults;
+      const sessionCount = s?.sessions?.count ?? h?.sessions?.count;
+
+      // Heartbeat from health endpoint
+      const agents = h?.agents;
+      const hbAgents = s?.heartbeat?.agents;
+
+      // Version from connect response
+      const version = conn.serverVersion ?? h?.server?.version ?? "unknown";
 
       const healthData = {
         model: defaults?.model ?? undefined,
         contextTokens: defaults?.contextTokens ?? undefined,
-        sessionCount: sessions?.count ?? undefined,
-        heartbeatEnabled: agents?.[0]?.heartbeat?.enabled ?? status?.heartbeat?.agents?.[0]?.enabled ?? undefined,
-        heartbeatInterval: agents?.[0]?.heartbeat?.every ?? status?.heartbeat?.agents?.[0]?.every ?? undefined,
+        sessionCount: sessionCount ?? undefined,
+        heartbeatEnabled: agents?.[0]?.heartbeat?.enabled ?? hbAgents?.[0]?.enabled ?? undefined,
+        heartbeatInterval: agents?.[0]?.heartbeat?.every ?? hbAgents?.[0]?.every ?? undefined,
         channels,
       };
 
       await this.convex.mutation("sessions:pushHealth", {
         instanceId: this.config.instanceId,
         healthData,
+      });
+
+      // Also update version in heartbeat
+      await this.convex.mutation("sessions:heartbeat", {
+        instanceId: this.config.instanceId,
+        version,
       });
     } catch (err) {
       if (this.running) console.error(`health sync failed: ${err.message}`);
