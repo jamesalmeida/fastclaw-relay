@@ -81,6 +81,7 @@ export const pushHealth = mutation({
     instanceId: v.string(),
     healthData: v.object({
       model: v.optional(v.string()),
+      activeSessionModel: v.optional(v.string()),
       contextTokens: v.optional(v.number()),
       sessionCount: v.optional(v.number()),
       heartbeatEnabled: v.optional(v.boolean()),

@@ -477,6 +477,11 @@ class Relay {
       const defaults = s?.sessions?.defaults ?? h?.agents?.[0]?.sessions?.defaults;
       const sessionCount = s?.sessions?.count ?? h?.sessions?.count;
 
+      // Active session model (agent:main:main is the primary session)
+      const recent = s?.sessions?.recent ?? [];
+      const mainSession = recent.find((r) => r.key === "agent:main:main") ?? recent[0];
+      const activeSessionModel = mainSession?.model ?? undefined;
+
       // Heartbeat from health endpoint
       const agents = h?.agents;
       const hbAgents = s?.heartbeat?.agents;
@@ -486,6 +491,7 @@ class Relay {
 
       const healthData = {
         model: defaults?.model ?? undefined,
+        activeSessionModel: activeSessionModel !== defaults?.model ? activeSessionModel : undefined,
         contextTokens: defaults?.contextTokens ?? undefined,
         sessionCount: sessionCount ?? undefined,
         heartbeatEnabled: agents?.[0]?.heartbeat?.enabled ?? hbAgents?.[0]?.enabled ?? undefined,

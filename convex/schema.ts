@@ -13,6 +13,7 @@ export default defineSchema({
     // Rich health data from gateway
     healthData: v.optional(v.object({
       model: v.optional(v.string()),
+      activeSessionModel: v.optional(v.string()),
       contextTokens: v.optional(v.number()),
       sessionCount: v.optional(v.number()),
       heartbeatEnabled: v.optional(v.boolean()),
