@@ -79,12 +79,19 @@ function extractSessions(payload) {
               ? session.lastMessage.content
               : "";
 
-      return {
-        sessionKey,
-        title:
+      const rawTitle =
+          (typeof session?.label === "string" && session.label) ||
+          (typeof session?.displayName === "string" && session.displayName) ||
           (typeof session?.title === "string" && session.title) ||
           (typeof session?.name === "string" && session.name) ||
-          sessionKey,
+          sessionKey;
+
+      // Friendly names for well-known sessions
+      const friendlyTitle = sessionKey === "agent:main:main" ? "Main Chat" : rawTitle;
+
+      return {
+        sessionKey,
+        title: friendlyTitle,
         isPinned: Boolean(session?.isPinned ?? session?.pinned ?? false),
         lastMessagePreview,
         updatedAt,
