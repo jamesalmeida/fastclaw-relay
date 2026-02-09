@@ -8,6 +8,8 @@ Relays messages between your local OpenClaw Gateway and the FastClaw iOS app via
 
 ## Install
 
+**ClawHub**: [clawhub.ai/jamesalmeida/fastclaw-relay](https://clawhub.ai/jamesalmeida/fastclaw-relay)
+
 ```bash
 clawhub install fastclaw-relay
 ```
