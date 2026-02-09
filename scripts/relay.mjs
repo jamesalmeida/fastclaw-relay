@@ -372,9 +372,13 @@ class Relay {
       void this.syncSessions(conn);
     }, SESSION_SYNC_MS);
 
+    console.log("starting relay loops (heartbeat, session sync, app poll)...");
     await this.sendHeartbeat();
+    console.log("heartbeat sent");
     await this.syncSessions(conn);
+    console.log("sessions synced");
     await this.forwardUnsyncedAppMessages(conn);
+    console.log("initial app message check done, entering wait loop...");
 
     try {
       await conn.waitForClose();
@@ -411,10 +415,13 @@ class Relay {
       });
 
       if (!Array.isArray(unsynced) || unsynced.length === 0) return;
+      console.log(`found ${unsynced.length} unsynced app messages`);
 
       const syncedIds = [];
       for (const message of unsynced) {
+        console.log(`forwarding to gateway: "${message.content}" → session ${message.sessionKey}`);
         const sent = await this.sendToGateway(conn, message);
+        console.log(`forward result: ${sent ? "OK" : "FAILED"}`);
         if (sent && message?._id) syncedIds.push(message._id);
       }
 
@@ -434,19 +441,19 @@ class Relay {
     const idempotencyKey = typeof message?._id === "string" ? message._id : randomUUID();
 
     const attempts = [
-      { method: "chat.send", payload: { sessionKey, text: content, idempotencyKey } },
-      { method: "chat.send", payload: { sessionKey, content, idempotencyKey } },
-      { method: "send", payload: { sessionKey, text: content, idempotencyKey } },
+      { method: "chat.send", payload: { sessionKey, message: content, idempotencyKey } },
     ];
 
     for (const attempt of attempts) {
       try {
+        console.log(`trying ${attempt.method}...`);
         const response = await conn.request(attempt.method, attempt.payload);
+        console.log(`${attempt.method} response:`, JSON.stringify(response).slice(0, 300));
         const frame = { payload: response };
         await this.pushGatewayMessages(extractGatewayMessages(frame));
         return true;
-      } catch {
-        // Try next payload shape/method for compatibility across gateway versions.
+      } catch (err) {
+        console.log(`${attempt.method} failed: ${err.message}`);
       }
     }
 
