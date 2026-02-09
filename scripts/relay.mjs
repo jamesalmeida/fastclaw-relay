@@ -414,11 +414,17 @@ class Relay {
       void this.syncSessions(conn);
     }, SESSION_SYNC_MS);
 
-    console.log("starting relay loops (heartbeat, session sync, app poll)...");
+    const healthSync = setInterval(() => {
+      void this.syncHealth(conn);
+    }, 60_000);
+
+    console.log("starting relay loops (heartbeat, session sync, health, app poll)...");
     await this.sendHeartbeat();
     console.log("heartbeat sent");
     await this.syncSessions(conn);
     console.log("sessions synced");
+    await this.syncHealth(conn);
+    console.log("health synced");
     await this.syncHistoryForSessions(conn);
     console.log("history synced");
     await this.forwardUnsyncedAppMessages(conn);
@@ -433,7 +439,52 @@ class Relay {
         clearInterval(appPoll);
         clearInterval(heartbeat);
         clearInterval(sessionSync);
+        clearInterval(healthSync);
       }
+    }
+  }
+
+  async syncHealth(conn) {
+    try {
+      const payload = await conn.request("health", {});
+      if (!payload) return;
+
+      const status = payload?.status ?? payload;
+      const channels = [];
+      const channelOrder = status?.channelOrder ?? Object.keys(status?.channels ?? {});
+      const channelLabels = status?.channelLabels ?? {};
+
+      for (const id of channelOrder) {
+        const ch = status?.channels?.[id];
+        if (!ch) continue;
+        channels.push({
+          id,
+          label: channelLabels[id] ?? id,
+          configured: ch.configured ?? false,
+          running: ch.running ?? false,
+          linked: ch.linked ?? false,
+        });
+      }
+
+      const sessions = status?.sessions;
+      const agents = status?.agents;
+      const defaults = sessions?.defaults ?? agents?.[0]?.sessions?.defaults;
+
+      const healthData = {
+        model: defaults?.model ?? undefined,
+        contextTokens: defaults?.contextTokens ?? undefined,
+        sessionCount: sessions?.count ?? undefined,
+        heartbeatEnabled: agents?.[0]?.heartbeat?.enabled ?? status?.heartbeat?.agents?.[0]?.enabled ?? undefined,
+        heartbeatInterval: agents?.[0]?.heartbeat?.every ?? status?.heartbeat?.agents?.[0]?.every ?? undefined,
+        channels,
+      };
+
+      await this.convex.mutation("sessions:pushHealth", {
+        instanceId: this.config.instanceId,
+        healthData,
+      });
+    } catch (err) {
+      if (this.running) console.error(`health sync failed: ${err.message}`);
     }
   }
 

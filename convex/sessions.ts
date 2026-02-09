@@ -75,6 +75,42 @@ export const heartbeat = mutation({
   },
 });
 
+// Push health data from relay
+export const pushHealth = mutation({
+  args: {
+    instanceId: v.string(),
+    healthData: v.object({
+      model: v.optional(v.string()),
+      contextTokens: v.optional(v.number()),
+      sessionCount: v.optional(v.number()),
+      heartbeatEnabled: v.optional(v.boolean()),
+      heartbeatInterval: v.optional(v.string()),
+      channels: v.optional(v.array(v.object({
+        id: v.string(),
+        label: v.string(),
+        configured: v.boolean(),
+        running: v.optional(v.boolean()),
+        linked: v.optional(v.boolean()),
+      }))),
+      updatedAt: v.optional(v.number()),
+    }),
+  },
+  handler: async (ctx, { instanceId, healthData }) => {
+    const instance = await ctx.db
+      .query("instances")
+      .withIndex("by_instanceId", (q) => q.eq("instanceId", instanceId))
+      .first();
+
+    if (instance) {
+      await ctx.db.patch(instance._id, {
+        healthData: { ...healthData, updatedAt: Date.now() },
+        status: "online",
+        lastSeenAt: Date.now(),
+      });
+    }
+  },
+});
+
 // Get instance status (used by FastClaw app)
 export const getInstanceStatus = query({
   args: { instanceId: v.string() },

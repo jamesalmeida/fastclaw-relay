@@ -10,6 +10,22 @@ export default defineSchema({
     version: v.optional(v.string()), // OpenClaw version
     lastSeenAt: v.number(), // timestamp
     createdAt: v.number(),
+    // Rich health data from gateway
+    healthData: v.optional(v.object({
+      model: v.optional(v.string()),
+      contextTokens: v.optional(v.number()),
+      sessionCount: v.optional(v.number()),
+      heartbeatEnabled: v.optional(v.boolean()),
+      heartbeatInterval: v.optional(v.string()),
+      channels: v.optional(v.array(v.object({
+        id: v.string(),
+        label: v.string(),
+        configured: v.boolean(),
+        running: v.optional(v.boolean()),
+        linked: v.optional(v.boolean()),
+      }))),
+      updatedAt: v.optional(v.number()),
+    })),
   })
     .index("by_instanceId", ["instanceId"]),
 
