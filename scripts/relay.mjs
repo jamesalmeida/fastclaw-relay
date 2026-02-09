@@ -160,29 +160,24 @@ class GatewayConnection {
       const sendConnect = async (challenge) => {
         try {
           const payload = {
+            minProtocol: 3,
+            maxProtocol: 3,
+            client: {
+              id: "gateway-client",
+              displayName: "FastClaw Relay",
+              version: "1.0.0",
+              platform: process.platform,
+              mode: "backend",
+            },
             role: "operator",
             scopes: ["operator.read", "operator.write"],
-            mode: "operator",
-            name: this.instanceName,
-            token: this.token,
-            device: {
-              id: this.identity.deviceId,
-              publicKey: this.identity.publicKeyB64,
-            },
-            meta: {
-              source: "fastclaw-relay",
-              instanceId: this.instanceId,
-            },
+            caps: [],
+            auth: { token: this.token },
           };
 
-          if (challenge?.nonce) {
-            const nonce = String(challenge.nonce);
-            const signedAt = nowMs();
-            const signature = sign(null, Buffer.from(`${nonce}:${signedAt}`), this.identity.privateKey).toString("base64");
-            payload.challenge = { nonce, signedAt, signature };
-          }
-
+          console.log("sending connect frame...");
           const response = await this.request("connect", payload, 12000);
+          console.log("connect response:", JSON.stringify(response).slice(0, 300));
           const type = response?.type ?? response?.event;
           if (type !== "hello-ok") {
             throw new Error(`Unexpected connect response type: ${type ?? "unknown"}`);
@@ -219,6 +214,7 @@ class GatewayConnection {
         }
 
         if (frame.type === "connect.challenge" || frame.event === "connect.challenge") {
+          console.log("received challenge, sending connect...");
           void sendConnect(frame.payload ?? frame.data ?? {});
           return;
         }
@@ -244,7 +240,7 @@ class GatewayConnection {
     }
 
     const id = randomUUID();
-    const frame = { id, method, payload };
+    const frame = { type: "req", id, method, params: payload };
 
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
