@@ -801,20 +801,31 @@ class Relay {
 
   async sendToGateway(conn, message) {
     const sessionKey = message?.sessionKey;
-    const content = message?.content;
-    if (!sessionKey || !content) return false;
+    const content = message?.content || "";
+    const hasAttachments = Array.isArray(message?.attachments) && message.attachments.length > 0;
+    if (!sessionKey || (!content && !hasAttachments)) return false;
 
     const idempotencyKey = typeof message?._id === "string" ? message._id : randomUUID();
 
     const payload = { sessionKey, message: content, idempotencyKey };
 
-    // Forward image attachments as URLs for vision model
+    // Forward image attachments as base64 for vision model
     if (Array.isArray(message?.attachments) && message.attachments.length > 0) {
-      const imageUrls = message.attachments
-        .filter((a) => a.type === "image" && a.url)
-        .map((a) => a.url);
-      if (imageUrls.length > 0) {
-        payload.attachments = imageUrls.map((url) => ({ type: "image", url }));
+      const imageAttachments = message.attachments.filter((a) => a.type === "image" && a.url);
+      if (imageAttachments.length > 0) {
+        const converted = [];
+        for (const att of imageAttachments) {
+          try {
+            const resp = await fetch(att.url);
+            const buf = Buffer.from(await resp.arrayBuffer());
+            const mimeType = att.mimeType || resp.headers.get("content-type") || "image/jpeg";
+            converted.push({ type: "image", mimeType, content: buf.toString("base64") });
+            console.log(`downloaded image (${buf.length} bytes, ${mimeType}) for gateway`);
+          } catch (err) {
+            console.error(`failed to download image attachment: ${err.message}`);
+          }
+        }
+        if (converted.length > 0) payload.attachments = converted;
       }
     }
 
