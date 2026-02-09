@@ -595,9 +595,14 @@ class Relay {
 
       for (const action of actions) {
         try {
-          const cmd = action.action === "enable"
-            ? `openclaw cron enable ${action.jobId}`
-            : `openclaw cron disable ${action.jobId}`;
+          const cmdMap = {
+            enable: `openclaw cron enable ${action.jobId}`,
+            disable: `openclaw cron disable ${action.jobId}`,
+            run: `openclaw cron run ${action.jobId}`,
+            remove: `openclaw cron rm ${action.jobId}`,
+          };
+          const cmd = cmdMap[action.action];
+          if (!cmd) throw new Error(`Unknown cron action: ${action.action}`);
           execSync(cmd, { encoding: "utf-8", timeout: 15000 });
           await this.convex.mutation("cronJobs:completeAction", {
             actionId: action._id,

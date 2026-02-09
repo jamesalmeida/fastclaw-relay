@@ -59,6 +59,23 @@ export const requestToggle = mutation({
   },
 });
 
+export const requestAction = mutation({
+  args: {
+    instanceId: v.string(),
+    jobId: v.string(),
+    action: v.string(), // "enable" | "disable" | "run" | "remove"
+  },
+  handler: async (ctx, { instanceId, jobId, action }) => {
+    await ctx.db.insert("cronActions", {
+      instanceId,
+      jobId,
+      action,
+      status: "pending",
+      createdAt: Date.now(),
+    });
+  },
+});
+
 export const getPendingActions = query({
   args: { instanceId: v.string() },
   handler: async (ctx, { instanceId }) => {
