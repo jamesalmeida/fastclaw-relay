@@ -552,7 +552,7 @@ class Relay {
 
   async syncCronJobs() {
     try {
-      const raw = execSync("openclaw cron list --json --include-disabled", {
+      const raw = execSync("openclaw cron list --json", {
         encoding: "utf-8",
         timeout: 15000,
       });
