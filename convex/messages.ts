@@ -8,8 +8,15 @@ export const sendFromApp = mutation({
     sessionKey: v.string(),
     content: v.string(),
     deviceId: v.string(),
+    attachments: v.optional(v.array(v.object({
+      type: v.string(),
+      storageId: v.optional(v.string()),
+      url: v.optional(v.string()),
+      mimeType: v.optional(v.string()),
+      filename: v.optional(v.string()),
+    }))),
   },
-  handler: async (ctx, { instanceId, sessionKey, content, deviceId }) => {
+  handler: async (ctx, { instanceId, sessionKey, content, deviceId, attachments }) => {
     // Verify device is paired to this instance
     const device = await ctx.db
       .query("devices")
@@ -28,6 +35,7 @@ export const sendFromApp = mutation({
       timestamp: Date.now(),
       source: "fastclaw",
       synced: false,
+      ...(attachments ? { attachments } : {}),
     });
 
     // Update session preview
@@ -45,7 +53,7 @@ export const sendFromApp = mutation({
       });
     }
 
-    return { _id: messageId, role: "user" as const, content, timestamp: Date.now() };
+    return { _id: messageId, role: "user" as const, content, timestamp: Date.now(), ...(attachments ? { attachments } : {}) };
   },
 });
 

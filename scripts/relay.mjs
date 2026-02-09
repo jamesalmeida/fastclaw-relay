@@ -806,8 +806,20 @@ class Relay {
 
     const idempotencyKey = typeof message?._id === "string" ? message._id : randomUUID();
 
+    const payload = { sessionKey, message: content, idempotencyKey };
+
+    // Forward image attachments as URLs for vision model
+    if (Array.isArray(message?.attachments) && message.attachments.length > 0) {
+      const imageUrls = message.attachments
+        .filter((a) => a.type === "image" && a.url)
+        .map((a) => a.url);
+      if (imageUrls.length > 0) {
+        payload.attachments = imageUrls.map((url) => ({ type: "image", url }));
+      }
+    }
+
     const attempts = [
-      { method: "chat.send", payload: { sessionKey, message: content, idempotencyKey } },
+      { method: "chat.send", payload },
     ];
 
     for (const attempt of attempts) {
